@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Clientes Consumidor</title>
+
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --bg-master: #050507; --bg-sidebar: #0E0E12; --bg-card: #141419;
+            --border: 1px solid rgba(255, 255, 255, 0.1);
+            --cyan: #00F0FF; --purple: #7000FF; --pink: #FF0055; --green: #00E096;
+            --text-main: #FFFFFF; --text-muted: #9CA3AF;
+            --font-ui: 'Inter', sans-serif;
+        }
+
+        * { margin:0; padding:0; box-sizing:border-box; outline:none; font-family: var(--font-ui); }
+        body { background: var(--bg-master); color: var(--text-main); height: 100vh; overflow: hidden; }
+
+        /* LAYOUT PRINCIPAL (ESCONDIDO ATÉ O LOGIN) */
+        #app-container { display: none; height: 100vh; grid-template-columns: 260px 1fr; }
+        #app-container.active { display: grid; }
+
+        /* TELA DE LOGIN / SELEÇÃO DE BANCO */
+        #login-screen {
+            height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: radial-gradient(circle at center, #1a1a20 0%, #050507 100%);
+        }
+        .login-box {
+            background: rgba(20, 20, 25, 0.8); border: 1px solid var(--cyan);
+            padding: 40px; border-radius: 16px; width: 400px; text-align: center;
+            box-shadow: 0 0 50px rgba(0, 240, 255, 0.1); backdrop-filter: blur(10px);
+        }
+        .login-title { font-size: 1.5rem; font-weight: 800; color: #fff; margin-bottom: 10px; }
+        .login-desc { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 30px; }
+
+        /* SIDEBAR */
+        aside { background: var(--bg-sidebar); border-right: var(--border); padding: 25px; display: flex; flex-direction: column; z-index: 100; }
+        .brand { font-size: 1.3rem; font-weight: 800; color: #fff; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        .brand i { color: var(--cyan); }
+        
+        .current-db { 
+            font-size: 0.7rem; color: var(--green); border: 1px solid var(--green); 
+            padding: 5px 10px; border-radius: 4px; margin-bottom: 30px; 
+            text-transform: uppercase; font-weight: 700; text-align: center;
+        }
+
+        nav button {
+            background: transparent; border: none; width: 100%; padding: 14px;
+            color: var(--text-muted); text-align: left; font-weight: 600;
+            border-radius: 8px; cursor: pointer; display: flex; gap: 12px; margin-bottom: 5px;
+            transition: 0.2s; align-items: center;
+        }
+        nav button:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        nav button.active { background: rgba(0, 240, 255, 0.1); color: var(--cyan); border-left: 3px solid var(--cyan); }
+
+        .footer-links { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+        .btn-ext { background: #1a1a1a; border: var(--border); color: #ccc; padding: 10px; border-radius: 6px; text-align: center; font-size: 0.75rem; font-weight: 700; text-decoration: none; display: flex; justify-content: center; gap: 8px; }
+        .btn-logout { background: #330000; border: 1px solid #550000; color: #ff5555; margin-top: 10px; }
+
+        /* MAIN */
+        main { padding: 40px; overflow-y: auto; }
+        h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 10px; }
+        .subtitle { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 30px; }
+
+        /* CARDS & INPUTS */
+        .glass-panel { background: var(--bg-card); border: var(--border); border-radius: 12px; padding: 25px; margin-bottom: 25px; }
+        .grid-form { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .span-2 { grid-column: span 2; }
+        
+        label { display: block; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; font-weight: 600; }
+        input, select, textarea { width: 100%; background: #09090b; border: 1px solid #333; color: #fff; padding: 14px; border-radius: 6px; transition: 0.3s; }
+        input:focus, select:focus, textarea:focus { border-color: var(--cyan); }
+
+        .btn-primary { background: var(--cyan); color: #000; border: none; padding: 15px; width: 100%; font-weight: 800; border-radius: 6px; cursor: pointer; margin-top: 10px; }
+        .btn-primary:hover { box-shadow: 0 0 20px rgba(0, 240, 255, 0.3); }
+
+        /* DATABASE TOOLBAR */
+        .db-toolbar {
+            display: flex; gap: 15px; background: #1a1a20; padding: 20px; 
+            border-radius: 10px; border: var(--border); align-items: flex-end; margin-bottom: 20px;
+        }
+        .search-group { flex: 2; }
+        .filter-group { flex: 1; }
+        .action-group { display: flex; gap: 10px; }
+
+        .btn-action {
+            height: 46px; padding: 0 20px; border-radius: 6px; font-weight: 700; cursor: pointer; border: none; display: flex; align-items: center; gap: 8px; font-size: 0.8rem;
+        }
+        .btn-gen { background: linear-gradient(135deg, var(--purple), #5a189a); color: #fff; }
+        .btn-pdf { background: #fff; color: #000; }
+        .btn-csv { background: #222; color: #fff; border: 1px solid #444; }
+
+        /* TABLE */
+        .table-wrapper { overflow-x: auto; border: var(--border); border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+        th { text-align: left; padding: 16px; background: rgba(255,255,255,0.03); color: var(--text-muted); border-bottom: 1px solid #333; font-size: 0.8rem; }
+        td { padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #eee; font-size: 0.9rem; }
+        
+        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+        .st-tratativa { color: #FFAA00; border: 1px solid #FFAA00; background: rgba(255, 170, 0, 0.1); }
+        .st-finalizado { color: #00E096; border: 1px solid #00E096; background: rgba(0, 224, 150, 0.1); }
+        .st-desativado { color: #FF0055; border: 1px solid #FF0055; background: rgba(255, 0, 85, 0.1); }
+
+        /* DASHBOARD GRID */
+        .dash-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .dash-full { grid-column: span 2; }
+        .chart-box { background: var(--bg-card); border: var(--border); border-radius: 12px; padding: 15px; height: 380px; position: relative; }
+        
+        .ai-box { background: rgba(0, 240, 255, 0.05); border-left: 4px solid var(--cyan); padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 25px; }
+
+        /* MODAL */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .modal-content { background: #141419; width: 700px; max-height: 90vh; border: 1px solid var(--border); border-radius: 12px; padding: 30px; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+        
+        .log-item { border-left: 2px solid var(--purple); padding-left: 15px; margin-bottom: 15px; }
+        .log-date { font-size: 0.7rem; color: #666; font-family: 'JetBrains Mono', monospace; }
+        .log-text { color: #ddd; font-size: 0.9rem; margin-top: 4px; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="login-screen">
+    <div class="login-box">
+        <div class="brand" style="justify-content:center; margin-bottom:20px"><i class="fas fa-layer-group"></i> Controle de Clientes Consumidor</div>
+        <div class="login-title">Selecionar Workspace</div>
+        <div class="login-desc">Digite o nome da empresa ou cliente para acessar a base de dados isolada.</div>
+        
+        <input id="workspace-name" placeholder="Ex: Cliente A, Loja Matriz..." style="text-align:center; margin-bottom:20px; font-weight:700">
+        <button onclick="App.login()" class="btn-primary">ACESSAR BASE DE DADOS</button>
+    </div>
+</div>
+
+<div id="app-container">
+    <aside>
+        <div>
+            <div class="brand"><i class="fas fa-layer-group"></i> Controle de Clientes Consumidor</div>
+            <div class="current-db" id="db-indicator">...</div>
+
+            <nav>
+                <button onclick="App.nav('cadastro')" id="nav-cadastro" class="active"><i class="fas fa-plus-circle"></i> Novo Registro</button>
+                <button onclick="App.nav('database')" id="nav-database"><i class="fas fa-database"></i> Base de Dados</button>
+            </nav>
+        </div>
+
+        <div class="footer-links">
+            <a href="index.html" target="_blank" class="btn-ext" style="color:#a4c639"><i class="fas fa-bullhorn"></i> RECLAME AQUI</a>
+            <a href="cotrole de cliente.html" target="_blank" class="btn-ext" style="color:#fff"><i class="fas fa-university"></i> CONSUMIDOR.GOV</a>
+            <button onclick="location.reload()" class="btn-ext btn-logout">SAIR / TROCAR BASE</button>
+        </div>
+    </aside>
+
+    <main>
+        <div id="modalClient" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3><i class="fas fa-user-circle"></i> Ficha do Cliente</h3>
+                    <button onclick="App.closeModal()" style="background:none; border:none; color:#fff; font-size:1.5rem; cursor:pointer">×</button>
+                </div>
+                <div id="modal-info" style="margin-bottom:25px; line-height:1.6; color:#ccc;"></div>
+                
+                <h4 style="color:var(--cyan); margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:5px">Histórico de Ações</h4>
+                <div id="modal-logs" style="max-height:200px; overflow-y:auto; margin-bottom:25px;"></div>
+
+                <div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:8px;">
+                    <label>Nova Tratativa</label>
+                    <textarea id="log-text" rows="2" placeholder="Descreva a ação..."></textarea>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-top:15px">
+                        <div>
+                            <label>Alterar Status</label>
+                            <select id="log-status">
+                                <option value="Tratativa">Tratativa</option>
+                                <option value="Finalizado">Finalizado</option>
+                                <option value="Desativado">Desativado</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; align-items:flex-end">
+                            <button onclick="App.saveLog()" class="btn-primary" style="margin:0">SALVAR REGISTRO</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section id="view-cadastro" class="fade-in">
+            <h1>Novo Registro</h1>
+            <div class="subtitle">Adicionando à base: <strong style="color:var(--cyan)" id="lbl-workspace">...</strong></div>
+            <form onsubmit="event.preventDefault(); App.saveRecord();">
+                <div class="glass-panel">
+                    <div class="grid-form">
+                        <div class="span-2"><label>Nome Completo</label><input id="cad_nome" required></div>
+                        
+                        <div><label>Data Abertura</label><input type="date" id="cad_data" required></div>
+                        <div><label>Data Prevista</label><input type="date" id="cad_prazo"></div>
+
+                        <div>
+                            <label>Área da Reclamação</label>
+                            <input id="cad_area" placeholder="Digite a área..." required>
+                        </div>
+                        
+                        <div>
+                            <label>Teve contato com a Central?</label>
+                            <select id="cad_central">
+                                <option value="Sim">Sim</option>
+                                <option value="Não">Não</option>
+                            </select>
+                        </div>
+
+                        <div><label>Regional</label><input id="cad_reg" placeholder="Ex: Sul"></div>
+                        <div><label>Segmento</label><input id="cad_seg" placeholder="Ex: Varejo"></div>
+
+                        <div class="span-2"><label>Motivo da Reclamação</label><input id="cad_motivo" required></div>
+                        <div class="span-2"><label>Detalhes</label><textarea id="cad_obs" rows="3"></textarea></div>
+                        <div class="span-2"><button class="btn-primary">CADASTRAR</button></div>
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        <section id="view-database" class="hidden">
+            <h1>Base de Dados</h1>
+            <div class="subtitle">Gerenciamento isolado da base atual.</div>
+
+            <div class="db-toolbar">
+                <div class="search-group">
+                    <label>Buscar Cliente</label>
+                    <input type="text" id="db_search" placeholder="Digite o nome..." onkeyup="App.renderTable()">
+                </div>
+                <div class="filter-group">
+                    <label>Mês</label>
+                    <select id="db_mes" onchange="App.renderTable()">
+                        <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option>
+                        <option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option>
+                        <option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option>
+                        <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Ano</label>
+                    <select id="db_ano" onchange="App.renderTable()">
+                        <option value="2024">2024</option><option value="2025">2025</option><option value="2026">2026</option>
+                    </select>
+                </div>
+                <div class="action-group">
+                    <button onclick="App.generateReport()" class="btn-action btn-gen"><i class="fas fa-chart-pie"></i> RELATÓRIO</button>
+                    <button onclick="App.exportPDF()" class="btn-action btn-pdf"><i class="fas fa-file-pdf"></i> PDF</button>
+                    <button onclick="App.exportCSV()" class="btn-action btn-csv"><i class="fas fa-file-csv"></i> CSV</button>
+                </div>
+            </div>
+
+            <div class="glass-panel" id="table-print" style="padding:0; overflow:hidden">
+                <div class="table-wrapper">
+                    <table id="mainTable">
+                        <thead>
+                            <tr>
+                                <th>Data</th><th>Cliente</th><th>Motivo</th><th>Área</th><th>Central?</th><th>Status</th><th>Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-report" class="hidden">
+            <div id="print-area">
+                <div style="display:flex; justify-content:space-between; margin-bottom:30px">
+                    <div>
+                        <h1>Relatório de Inteligência</h1>
+                        <div class="subtitle" id="report-period">Análise do Período</div>
+                    </div>
+                    <button onclick="App.nav('database')" style="background:#222; color:#fff; border:1px solid #444; padding:10px 20px; border-radius:6px; cursor:pointer; height:40px">Voltar</button>
+                </div>
+
+                <div class="ai-box">
+                    <h3 style="color:var(--cyan); margin-bottom:10px"><i class="fas fa-robot"></i> ANÁLISE DETALHADA</h3>
+                    <div id="ai-content" style="line-height:1.6; color:#ddd">Processando dados...</div>
+                </div>
+
+                <div class="dash-grid">
+                    <div class="chart-box">
+                        <div id="chart-central" style="width:100%; height:100%"></div>
+                    </div>
+                    <div class="chart-box">
+                        <div id="chart-motivos" style="width:100%; height:100%"></div>
+                    </div>
+                    <div class="chart-box">
+                        <div id="chart-pie" style="width:100%; height:100%"></div>
+                    </div>
+                    <div class="chart-box">
+                        <div id="chart-growth" style="width:100%; height:100%"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script>
+    class App {
+        static db = [];
+        static currentId = null;
+        static currentDBKey = '';
+
+        // --- SISTEMA DE LOGIN (WORKSPACE) ---
+        static login() {
+            const input = document.getElementById('workspace-name').value.trim();
+            if(!input) { alert('Digite um nome para a base de dados.'); return; }
+
+            // Define a chave única baseada no nome digitado
+            // Ex: Se digitar "Loja A", chave será "nexus_db_Loja A"
+            this.currentDBKey = `nexus_db_${input}`;
+            
+            // Carrega os dados dessa chave específica
+            const saved = localStorage.getItem(this.currentDBKey);
+            this.db = saved ? JSON.parse(saved) : [];
+
+            // UI Updates
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-container').classList.add('active');
+            document.getElementById('db-indicator').innerText = `BASE: ${input}`;
+            document.getElementById('lbl-workspace').innerText = input;
+
+            this.init();
+        }
+
+        static init() {
+            document.getElementById('cad_data').value = moment().format('YYYY-MM-DD');
+            document.getElementById('cad_prazo').value = moment().add(5, 'days').format('YYYY-MM-DD');
+            document.getElementById('db_mes').value = moment().format('MM');
+            document.getElementById('db_ano').value = moment().format('YYYY');
+            
+            this.renderTable();
+        }
+
+        static nav(view) {
+            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(`view-${view}`).classList.remove('hidden');
+            document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+            if(document.getElementById(`nav-${view}`)) document.getElementById(`nav-${view}`).classList.add('active');
+            
+            if(view === 'database') this.renderTable();
+        }
+
+        static saveRecord() {
+            const rec = {
+                id: Date.now(),
+                nome: document.getElementById('cad_nome').value,
+                data: document.getElementById('cad_data').value,
+                prazo: document.getElementById('cad_prazo').value,
+                area: document.getElementById('cad_area').value,
+                central: document.getElementById('cad_central').value,
+                reg: document.getElementById('cad_reg').value,
+                seg: document.getElementById('cad_seg').value,
+                motivo: document.getElementById('cad_motivo').value,
+                obs: document.getElementById('cad_obs').value,
+                status: 'Tratativa',
+                logs: [{date: moment().format('DD/MM/YYYY HH:mm'), text: 'Registro criado.'}]
+            };
+            this.db.push(rec);
+            this.saveDB();
+            alert('Registro salvo com sucesso!');
+            document.querySelector('form').reset();
+            this.renderTable();
+        }
+
+        // Salva na chave específica do Workspace atual
+        static saveDB() { 
+            localStorage.setItem(this.currentDBKey, JSON.stringify(this.db)); 
+        }
+
+        // --- FILTRAGEM E TABELA ---
+        static getFilteredData() {
+            const m = document.getElementById('db_mes').value;
+            const y = document.getElementById('db_ano').value;
+            const search = document.getElementById('db_search').value.toLowerCase();
+
+            return this.db.filter(r => {
+                const d = moment(r.data);
+                const matchesDate = d.format('MM') === m && d.format('YYYY') === y;
+                const matchesName = r.nome.toLowerCase().includes(search);
+                return matchesDate && matchesName;
+            });
+        }
+
+        static renderTable() {
+            const data = this.getFilteredData();
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            data.sort((a,b) => new Date(b.data) - new Date(a.data));
+
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#666">Nenhum registro encontrado neste período/busca.</td></tr>';
+                return;
+            }
+
+            data.forEach(r => {
+                let badge = 'st-tratativa';
+                if(r.status === 'Finalizado') badge = 'st-finalizado';
+                if(r.status === 'Desativado') badge = 'st-desativado';
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${moment(r.data).format('DD/MM/YY')}</td>
+                        <td>${r.nome}</td>
+                        <td>${r.motivo}</td>
+                        <td>${r.area}</td>
+                        <td>${r.central}</td>
+                        <td><span class="status-badge ${badge}">${r.status}</span></td>
+                        <td><button onclick="App.openModal(${r.id})" style="background:none;border:none;color:#fff;cursor:pointer"><i class="fas fa-eye"></i></button></td>
+                    </tr>`;
+            });
+        }
+
+        // --- MODAL ---
+        static openModal(id) {
+            this.currentId = id;
+            const r = this.db.find(x => x.id == id);
+            
+            document.getElementById('modal-info').innerHTML = `
+                <strong>Cliente:</strong> ${r.nome}<br>
+                <strong>Área:</strong> ${r.area} | <strong>Motivo:</strong> ${r.motivo}<br>
+                <strong>Obs Inicial:</strong> ${r.obs}
+            `;
+            document.getElementById('log-status').value = r.status;
+            this.renderLogs(r.logs);
+            document.getElementById('modalClient').style.display = 'flex';
+        }
+
+        static renderLogs(logs) {
+            const div = document.getElementById('modal-logs');
+            div.innerHTML = '';
+            [...logs].reverse().forEach(l => {
+                div.innerHTML += `
+                    <div class="log-item">
+                        <div class="log-date">${l.date}</div>
+                        <div class="log-text">${l.text}</div>
+                    </div>`;
+            });
+        }
+
+        static saveLog() {
+            const txt = document.getElementById('log-text').value;
+            const sts = document.getElementById('log-status').value;
+            const idx = this.db.findIndex(x => x.id == this.currentId);
+            
+            if(idx > -1) {
+                this.db[idx].status = sts;
+                if(txt) {
+                    this.db[idx].logs.push({
+                        date: moment().format('DD/MM/YYYY HH:mm'),
+                        text: `${txt} (Status: ${sts})`
+                    });
+                } else if (this.db[idx].status !== sts) {
+                    this.db[idx].logs.push({
+                        date: moment().format('DD/MM/YYYY HH:mm'),
+                        text: `Alteração de status para: ${sts}`
+                    });
+                }
+                this.saveDB();
+                alert('Atualizado!');
+                this.renderLogs(this.db[idx].logs); 
+                this.renderTable();
+                document.getElementById('log-text').value = '';
+            }
+        }
+
+        static closeModal() { document.getElementById('modalClient').style.display = 'none'; }
+
+        // --- RELATÓRIO E GRÁFICOS ---
+        static generateReport() {
+            const m = document.getElementById('db_mes').value;
+            const y = document.getElementById('db_ano').value;
+            
+            const data = this.db.filter(r => {
+                const d = moment(r.data);
+                return d.format('MM') === m && d.format('YYYY') === y;
+            });
+            
+            const prevM = moment(`${y}-${m}-01`).subtract(1,'month');
+            const prevData = this.db.filter(r => {
+                const d = moment(r.data);
+                return d.format('MM') === prevM.format('MM') && d.format('YYYY') === prevM.format('YYYY');
+            });
+
+            if(data.length === 0) { alert('Sem dados no mês selecionado na base.'); return; }
+
+            this.nav('report');
+            document.getElementById('report-period').innerText = `Período: ${m}/${y}`;
+
+            const layout = {
+                paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+                font: {family:'Inter', color:'#999'},
+                margin: {l:40, r:20, t:40, b:40},
+                xaxis: {gridcolor:'#333'}, yaxis: {gridcolor:'#333'}
+            };
+
+            // 1. CHART CENTRAL
+            const sim = data.filter(r => r.central === 'Sim').length;
+            const nao = data.filter(r => r.central === 'Não').length;
+            
+            Plotly.newPlot('chart-central', [{
+                x: [sim, nao], y: ['Sim', 'Não'], type: 'bar', orientation: 'h',
+                marker: {color: ['#00F0FF', '#FF0055']}
+            }], { ...layout, title: 'Contato com a Central (Total)' });
+
+            // 2. VOLUME POR MOTIVO
+            const counts = {};
+            data.forEach(r => counts[r.motivo] = (counts[r.motivo]||0)+1);
+            const sortedM = Object.entries(counts).sort((a,b)=>a[1]-b[1]);
+            
+            Plotly.newPlot('chart-motivos', [{
+                x: sortedM.map(i=>i[1]), y: sortedM.map(i=>i[0]),
+                type: 'bar', orientation: 'h', marker: {color: '#7000FF'}
+            }], { ...layout, title: 'Volume por Motivo' });
+
+            // 3. PIZZA TOP 3
+            const sortedDesc = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+            let pLabels=[], pValues=[], other=0;
+            sortedDesc.forEach((item, i) => {
+                if(i<3) { pLabels.push(item[0]); pValues.push(item[1]); }
+                else other += item[1];
+            });
+            if(other>0) { pLabels.push('Outros'); pValues.push(other); }
+
+            Plotly.newPlot('chart-pie', [{
+                labels: pLabels, values: pValues, type: 'pie', hole: 0.4,
+                marker: {colors: ['#00F0FF', '#00E096', '#FFAA00', '#333']}
+            }], { ...layout, title: 'Top 3 Ofensores' });
+
+            // 4. CRESCIMENTO
+            const curr = data.length;
+            const prev = prevData.length;
+            let pct = 0;
+            if(prev>0) pct = ((curr-prev)/prev)*100; else if(curr>0) pct = 100;
+
+            Plotly.newPlot('chart-growth', [{
+                x: ['Mês Anterior', 'Mês Atual'], y: [prev, curr],
+                type: 'bar', text: [prev, `${pct.toFixed(1)}%`], textposition: 'auto',
+                marker: {color: ['#333', pct>=0 ? '#00E096' : '#FF0055']}
+            }], { ...layout, title: 'Crescimento Mensal' });
+
+            // IA TEXT
+            const topReason = sortedDesc.length > 0 ? sortedDesc[0][0] : 'Nenhum';
+            document.getElementById('ai-content').innerHTML = `
+                <strong>RESUMO EXECUTIVO:</strong><br>
+                Foram registrados <strong>${curr}</strong> chamados na base <strong>${this.currentDBKey.replace('nexus_db_', '')}</strong>. O volume variou <strong>${pct.toFixed(1)}%</strong> em relação ao mês anterior.<br>
+                O principal motivo foi <strong>"${topReason}"</strong>.
+            `;
+        }
+
+        static exportPDF() {
+            const el = document.getElementById('table-print');
+            html2pdf().set({ 
+                margin: 10, 
+                filename: 'Base_Dados.pdf', 
+                html2canvas: { scale: 2, backgroundColor: '#141419' },
+                jsPDF: { orientation: 'landscape' } 
+            }).from(el).save();
+        }
+        
+        static exportCSV() {
+            const m = document.getElementById('db_mes').value;
+            const y = document.getElementById('db_ano').value;
+            const data = this.getFilteredData();
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Base");
+            XLSX.writeFile(wb, `Base_${m}_${y}.xlsx`);
+        }
+    }
+</script>
+</body>
+</html>
